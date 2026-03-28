@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Meeting Intelligence — Live Dashboard</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:       #f8f7f4;
+    --surface:  #ffffff;
+    --border:   rgba(0,0,0,0.1);
+    --text:     #1a1a18;
+    --muted:    #6b6b67;
+    --purple50: #EEEDFE; --purple600: #534AB7; --purple800: #3C3489;
+    --teal50:   #E1F5EE; --teal600:   #0F6E56; --teal800:   #085041;
+    --amber50:  #FAEEDA; --amber600:  #854F0B; --amber800:  #633806;
+    --coral50:  #FAECE7; --coral600:  #993C1D; --coral800:  #712B13;
+    --green50:  #EAF3DE; --green600:  #3B6D11; --green800:  #27500A;
+    --gray50:   #F1EFE8; --gray600:   #5F5E5A; --gray800:   #444441;
+    --radius:   10px;
+    --mono:     'SF Mono', 'Fira Code', monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1c1c1a; --surface: #242422; --border: rgba(255,255,255,0.1);
+      --text: #e8e6e0; --muted: #9b9990;
+      --purple50: #26215C; --purple600: #AFA9EC; --purple800: #CECBF6;
+      --teal50: #04342C; --teal600: #5DCAA5; --teal800: #9FE1CB;
+      --amber50: #412402; --amber600: #EF9F27; --amber800: #FAC775;
+      --coral50: #4A1B0C; --coral600: #F0997B; --coral800: #F5C4B3;
+      --green50: #173404; --green600: #97C459; --green800: #C0DD97;
+      --gray50: #2C2C2A; --gray600: #B4B2A9; --gray800: #D3D1C7;
+    }
+  }
+
+  body { background: var(--bg); color: var(--text); font-family: -apple-system, sans-serif; font-size: 14px; line-height: 1.6; min-height: 100vh; }
+
+  header { background: var(--surface); border-bottom: 0.5px solid var(--border); padding: 0 24px; height: 56px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 10; }
+  header h1 { font-size: 15px; font-weight: 500; }
+  .status-pill { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--gray600); }
+  .dot.running { background: var(--teal600); animation: pulse 1.4s ease-in-out infinite; }
+  .dot.done    { background: var(--green600); }
+  .dot.waiting { background: var(--amber600); animation: pulse 1.4s ease-in-out infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+  .layout { display: grid; grid-template-columns: 1fr 360px; gap: 16px; padding: 20px 24px; max-width: 1200px; margin: 0 auto; }
+
+  .card { background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+  .card-header { padding: 14px 18px 10px; border-bottom: 0.5px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+  .card-title { font-size: 13px; font-weight: 500; color: var(--muted); letter-spacing: .04em; text-transform: uppercase; }
+  .card-body { padding: 0; }
+
+  /* Input area */
+  .input-area { padding: 16px 18px; border-bottom: 0.5px solid var(--border); display: flex; flex-direction: column; gap: 10px; }
+  textarea { width: 100%; resize: vertical; min-height: 110px; background: var(--bg); border: 0.5px solid var(--border); border-radius: 8px; padding: 10px 12px; font-family: inherit; font-size: 13px; color: var(--text); line-height: 1.6; outline: none; }
+  textarea:focus { border-color: var(--purple600); }
+  .btn-row { display: flex; gap: 8px; }
+  button { padding: 8px 16px; border-radius: 8px; border: 0.5px solid var(--border); background: var(--surface); color: var(--text); font-size: 13px; font-weight: 500; cursor: pointer; transition: background .15s; }
+  button:hover { background: var(--bg); }
+  button.primary { background: var(--purple600); color: #fff; border-color: var(--purple600); }
+  button.primary:hover { opacity: .9; }
+  button:disabled { opacity: .4; cursor: not-allowed; }
+
+  /* Audit trail */
+  #audit-list { max-height: 380px; overflow-y: auto; }
+  .audit-entry { display: flex; gap: 12px; padding: 12px 18px; border-bottom: 0.5px solid var(--border); animation: fadeIn .3s ease; }
+  @keyframes fadeIn { from{opacity:0;transform:translateY(-4px)} to{opacity:1;transform:none} }
+  .audit-entry:last-child { border-bottom: none; }
+  .stage-badge { flex-shrink: 0; font-size: 10px; font-weight: 500; padding: 3px 8px; border-radius: 99px; height: fit-content; margin-top: 2px; text-transform: uppercase; letter-spacing: .04em; }
+  .badge-extraction  { background: var(--purple50); color: var(--purple800); }
+  .badge-verification{ background: var(--purple50); color: var(--purple800); }
+  .badge-action      { background: var(--teal50);   color: var(--teal800);   }
+  .badge-human       { background: var(--amber50);  color: var(--amber800);  }
+  .badge-monitor     { background: var(--coral50);  color: var(--coral800);  }
+  .badge-retry       { background: var(--coral50);  color: var(--coral800);  }
+  .audit-content { flex: 1; min-width: 0; }
+  .audit-event { font-size: 12px; font-weight: 500; }
+  .audit-reasoning { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .audit-ts { font-size: 11px; color: var(--muted); margin-top: 3px; font-family: var(--mono); }
+  .empty-state { padding: 32px 18px; text-align: center; color: var(--muted); font-size: 13px; }
+
+  /* Task board */
+  #task-list { padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; max-height: 500px; overflow-y: auto; }
+  .task-card { border: 0.5px solid var(--border); border-radius: 8px; padding: 10px 12px; }
+  .task-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+  .task-desc { font-size: 13px; line-height: 1.5; flex: 1; }
+  .priority-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
+  .p-high   { background: #E24B4A; }
+  .p-medium { background: #EF9F27; }
+  .p-low    { background: #639922; }
+  .task-meta { display: flex; gap: 8px; margin-top: 6px; flex-wrap: wrap; }
+  .meta-pill { font-size: 11px; color: var(--muted); background: var(--bg); border: 0.5px solid var(--border); border-radius: 99px; padding: 2px 8px; }
+  .meta-pill.owner { color: var(--purple800); background: var(--purple50); }
+  .escalation-bar { margin-top: 6px; display: flex; gap: 4px; align-items: center; }
+  .esc-step { width: 20px; height: 4px; border-radius: 2px; background: var(--border); }
+  .esc-step.filled { background: var(--coral600); }
+  .esc-label { font-size: 11px; color: var(--muted); margin-left: 4px; }
+
+  /* Approval panel */
+  #approval-panel { display: none; border-top: 0.5px solid var(--border); padding: 14px 18px; background: var(--amber50); }
+  #approval-panel.visible { display: block; }
+  .approval-title { font-size: 13px; font-weight: 500; color: var(--amber800); margin-bottom: 8px; }
+  .gap-list { font-size: 12px; color: var(--amber600); margin-bottom: 10px; line-height: 1.8; }
+  .approval-actions { display: flex; gap: 8px; }
+  .btn-approve { background: var(--teal600); color: #fff; border-color: var(--teal600); }
+  .btn-approve:hover { opacity: .9; }
+
+  /* Stats row */
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding: 14px 18px; border-bottom: 0.5px solid var(--border); }
+  .stat { background: var(--bg); border-radius: 8px; padding: 10px 12px; }
+  .stat-label { font-size: 11px; color: var(--muted); }
+  .stat-value { font-size: 22px; font-weight: 500; margin-top: 2px; }
+
+  .thread-id { font-family: var(--mono); font-size: 11px; color: var(--muted); padding: 6px 18px; border-bottom: 0.5px solid var(--border); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Meeting intelligence — live audit</h1>
+  <div class="status-pill">
+    <div class="dot" id="status-dot"></div>
+    <span id="status-label">Idle</span>
+  </div>
+</header>
+
+<div class="layout">
+  <div style="display:flex;flex-direction:column;gap:16px;">
+
+    <div class="card">
+      <div class="card-header"><span class="card-title">Input transcript</span></div>
+      <div class="input-area">
+        <textarea id="transcript" placeholder="Paste your meeting transcript here...">Weekly sync — March 2026
+
+Priya: I'll finish the API integration by end of Thursday.
+Rahul: Can you also update the docs? I know it's a lot but it's needed before launch.
+Priya: Sure, I can do that too. Thursday still works.
+Rahul: Great. Also someone needs to set up the staging environment. Ankit was supposed to do it last week.
+Ankit: Sorry, I got pulled into something else. I'll get to it.
+Rahul: We need that done by Wednesday. It's blocking QA.
+Priya: One more thing — we should schedule a design review before the release. Who owns that?
+[silence]
+Rahul: Let's figure that out offline.</textarea>
+        <div class="btn-row">
+          <button class="primary" id="run-btn" onclick="runWorkflow()">Run workflow</button>
+          <button onclick="resetDemo()">Reset</button>
+          <button onclick="simulateStale()">Simulate staleness</button>
+        </div>
+      </div>
+      <div class="stats">
+        <div class="stat"><div class="stat-label">Tasks found</div><div class="stat-value" id="stat-tasks">—</div></div>
+        <div class="stat"><div class="stat-label">Audit events</div><div class="stat-value" id="stat-events">0</div></div>
+        <div class="stat"><div class="stat-label">Stage</div><div class="stat-value" style="font-size:14px;margin-top:6px;" id="stat-stage">—</div></div>
+      </div>
+      <div class="thread-id" id="thread-display" style="display:none;"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Audit trail</span>
+        <span id="live-badge" style="font-size:11px;color:var(--teal600);display:none;">● live</span>
+      </div>
+      <div class="card-body">
+        <div id="audit-list"><div class="empty-state">Run a workflow to see agent decisions appear here in real time.</div></div>
+      </div>
+    </div>
+
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:16px;">
+    <div class="card">
+      <div class="card-header"><span class="card-title">Task board</span></div>
+      <div id="approval-panel">
+        <div class="approval-title">Human review needed</div>
+        <div class="gap-list" id="gap-list"></div>
+        <div class="approval-actions">
+          <button class="btn-approve" onclick="approve()">Approve + continue</button>
+        </div>
+      </div>
+      <div id="task-list"><div class="empty-state">Tasks will appear here after extraction.</div></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = 'http://localhost:8000';
+let currentThreadId = null;
+let sseSource = null;
+let auditCount = 0;
+
+// ---------------- RUN WORKFLOW ---------------- //
+async function runWorkflow() {
+  const transcript = document.getElementById('transcript').value.trim();
+  if (!transcript) return;
+
+  resetState();
+  setStatus('running', 'Running...');
+  document.getElementById('run-btn').disabled = true;
+  document.getElementById('live-badge').style.display = 'inline';
+
+  try {
+    const res = await fetch(API + '/run', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ transcript })
+    });
+
+    const data = await res.json();
+
+    currentThreadId = data.thread_id;
+
+    document.getElementById('thread-display').style.display = 'block';
+    document.getElementById('thread-display').textContent = 'Thread: ' + currentThreadId;
+
+    renderTasks(data.tasks || []);
+
+    if (data.gaps && data.gaps.length > 0) {
+      showApprovalPanel(data.gaps);
+      setStatus('waiting', 'Awaiting human');
+    }
+
+    startSSE(currentThreadId);
+
+  } catch (err) {
+    console.error(err);
+    alert("Backend error");
+  }
+}
+
+// ---------------- SSE ---------------- //
+function startSSE(threadId) {
+  if (sseSource) sseSource.close();
+
+  sseSource = new EventSource(API + '/stream/' + threadId);
+
+  sseSource.onmessage = (e) => {
+    const entry = JSON.parse(e.data);
+
+    addAuditEntry(entry);
+
+    if (entry.event === 'ACTIONS_FIRED') {
+      setStatus('done', 'Completed');
+      document.getElementById('live-badge').style.display = 'none';
+      sseSource.close();
+    }
+  };
+}
+
+// ---------------- TASK RENDER ---------------- //
+function renderTasks(tasks) {
+  const list = document.getElementById('task-list');
+  list.innerHTML = '';
+
+  if (!tasks.length) {
+    list.innerHTML = '<div class="empty-state">No tasks yet.</div>';
+    return;
+  }
+
+  document.getElementById('stat-tasks').textContent = tasks.length;
+
+  tasks.forEach(t => {
+    const el = document.createElement('div');
+    el.className = 'task-card';
+
+    el.innerHTML = `
+      <div class="task-header">
+        <div class="task-desc">${t.description}</div>
+        <div class="priority-dot p-${t.priority || 'medium'}"></div>
+      </div>
+      <div class="task-meta">
+        ${t.owner ? `<span class="meta-pill owner">${t.owner}</span>` : '<span class="meta-pill" style="color:red">No owner</span>'}
+        ${t.deadline ? `<span class="meta-pill">${t.deadline}</span>` : '<span class="meta-pill" style="color:red">No deadline</span>'}
+      </div>
+    `;
+
+    list.appendChild(el);
+  });
+}
+
+// ---------------- APPROVAL PANEL ---------------- //
+function showApprovalPanel(gaps) {
+  const panel = document.getElementById('approval-panel');
+  const gapList = document.getElementById('gap-list');
+
+  panel.classList.add('visible');
+
+  gapList.innerHTML = gaps.map(g =>
+    `• ${g.issue || g}`
+  ).join('<br>');
+}
+
+// ---------------- APPROVE ---------------- //
+async function approve() {
+  if (!currentThreadId) return;
+
+  // 🔥 Demo fix (auto-fill gaps)
+  const fixedTasks = [
+    {
+      description: "Finish API integration",
+      owner: "Priya",
+      deadline: "Friday",
+      priority: "high"
+    },
+    {
+      description: "Update documentation",
+      owner: "Ankit",
+      deadline: "Before release",
+      priority: "medium"
+    },
+    {
+      description: "Set up staging environment",
+      owner: "Ankit",
+      deadline: "Wednesday",
+      priority: "high"
+    },
+    {
+      description: "Schedule design review",
+      owner: "Rahul",
+      deadline: "End of sprint",
+      priority: "medium"
+    }
+  ];
+
+  const res = await fetch(API + '/approve/' + currentThreadId, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      approver: "demo-user",
+      fixed_tasks: fixedTasks,
+      notes: "Filled missing fields"
+    })
+  });
+
+  const data = await res.json();
+
+  document.getElementById('approval-panel').classList.remove('visible');
+
+  renderTasks(data.tasks || []);
+}
+
+// ---------------- AUDIT ---------------- //
+function addAuditEntry(entry) {
+  const list = document.getElementById('audit-list');
+
+  if (list.querySelector('.empty-state')) list.innerHTML = '';
+
+  auditCount++;
+  document.getElementById('stat-events').textContent = auditCount;
+  document.getElementById('stat-stage').textContent = entry.stage;
+
+  const el = document.createElement('div');
+  el.className = 'audit-entry';
+
+  el.innerHTML = `
+    <span class="stage-badge badge-${entry.stage}">${entry.stage}</span>
+    <div class="audit-content">
+      <div class="audit-event">${entry.event}</div>
+      <div class="audit-reasoning">${entry.reasoning}</div>
+      <div class="audit-ts">${entry.ts || new Date().toISOString()}</div>
+    </div>
+  `;
+
+  list.prepend(el);
+}
+
+// ---------------- STATUS ---------------- //
+function setStatus(type, label) {
+  const dot = document.getElementById('status-dot');
+  dot.className = 'dot ' + type;
+  document.getElementById('status-label').textContent = label;
+}
+
+// ---------------- RESET ---------------- //
+function resetState() {
+  currentThreadId = null;
+  auditCount = 0;
+
+  if (sseSource) {
+    sseSource.close();
+    sseSource = null;
+  }
+
+  document.getElementById('approval-panel').classList.remove('visible');
+
+  document.getElementById('audit-list').innerHTML =
+    '<div class="empty-state">Run workflow to see results</div>';
+
+  document.getElementById('task-list').innerHTML =
+    '<div class="empty-state">Tasks will appear here</div>';
+
+  document.getElementById('stat-tasks').textContent = '—';
+  document.getElementById('stat-events').textContent = '0';
+  document.getElementById('stat-stage').textContent = '—';
+
+  setStatus('', 'Idle');
+}
+</script>
+</body>
+</html>
