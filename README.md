@@ -1,218 +1,267 @@
-# Meeting Intelligence Agent
+# 🧠 Meeting Intelligence — AI Workflow Automation System
 
-A LangGraph-based multi-agent workflow for extracting, verifying, and executing action items from meeting transcripts.
+A production-ready AI system that transforms meeting transcripts into structured tasks, verifies completeness, enables human approval, executes actions, and continuously monitors progress with automatic escalation.
 
-## 🐛 Bugs Fixed
+---
 
-### 1. **Duplicate Function Definition in `tools/slack.py`**
-   - **Issue**: `send_slack_message()` was defined twice, causing the second definition to override the first
-   - **Fix**: Removed the incomplete second definition that only had a debug print statement
-   - **Impact**: Slack messages will now work correctly with proper webhook integration
+## 🏗 Tech Stack
 
-### 2. **Missing `confidence` Field in Fallback Task**
-   - **Issue**: The fallback task in `agents/nodes.py` was missing the `confidence` field required by the `Task` TypedDict schema
-   - **Fix**: Added `"confidence": "low"` to the fallback task
-   - **Impact**: Prevents validation errors when extraction fails after retries
+| Layer | Technology |
+|-------|-----------|
+| AI Workflow | LangGraph |
+| LLM | Claude (Anthropic) |
+| Backend | FastAPI |
+| Database | SQLite |
+| Real-time | Server-Sent Events (SSE) |
+| Integrations | Slack (Webhooks), Jira (simulated) |
+| Async Tasks | asyncio |
+| Frontend | HTML + JavaScript Dashboard |
 
-### 3. **Missing Timestamp in Monitor Audit Trail**
-   - **Issue**: The `escalate()` function in `api/monitor.py` was not including the `ts` field in audit entries
-   - **Fix**: Added `"ts": datetime.now(timezone.utc).isoformat()` to the audit trail entry
-   - **Impact**: All audit entries now have consistent timestamp tracking
+---
 
-### 4. **Code Quality**
-   - Removed large `venv/` directory (regenerate with `pip install -r requirements.txt`)
-   - Removed generated database files (`*.db`, `*.db-shm`, `*.db-wal`)
-   - Removed `__pycache__/` directories
-   - Added comprehensive `.gitignore`
+## 📁 Project Structure
 
-## 🚀 Setup
+```text
+meeting-intelligence/
+│
+├── agents/                     # AI workflow logic
+│   ├── graph.py               # LangGraph workflow definition
+│   ├── nodes.py               # Agents (extraction, verification, action, etc.)
+│   └── state.py               # Typed workflow state
+│
+├── api/                       # FastAPI backend
+│   ├── main.py               # Entry point + API routes
+│   ├── db.py                 # Database operations
+│   └── monitor.py            # Task monitoring + escalation logic
+│
+├── tools/                     # External integrations
+│   ├── slack.py              # Slack notifications + tool schema
+│   └── executor.py           # Tool execution handler
+│
+├── dashboard/                 # Frontend UI
+│   └── index.html            # Dashboard interface
+│
+├── tests/                     # Test scripts
+│   └── test_agents.py
+│
+├── tasks.db                   # Task storage (SQLite)
+├── workflows.db               # LangGraph checkpoints (SQLite)
+│
+├── .env.example               # Environment variables template
+├── requirements.txt           # Python dependencies
+└── README.md                  # Project documentation
+```
+---
 
-### Prerequisites
-- Python 3.9+
-- Anthropic API key
-- Optional: Jira and Slack credentials for full integration
+## 🚀 Quick Start
 
-### Installation
-
-1. **Create virtual environment**
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   ```
-
-2. **Install dependencies**
-   ```bash
-   pip install -r meeting-intelligence/requirements.txt
-   ```
-
-3. **Configure environment**
-   ```bash
-   cp meeting-intelligence/.env.example meeting-intelligence/.env
-   ```
-
-   Edit `.env` with your credentials:
-   ```
-   ANTHROPIC_API_KEY=sk-ant-...
-   JIRA_BASE_URL=https://your-domain.atlassian.net
-   JIRA_EMAIL=your-email@example.com
-   JIRA_API_TOKEN=your-api-token
-   SLACK_WEBHOOK_URL=https://hooks.slack.com/services/...
-   ```
-
-   If credentials are not provided, the system runs in mock mode.
-
-### Running the API
+### 1. Clone Repository
 
 ```bash
+git clone https://github.com/yourusername/meeting-intelligence.git
 cd meeting-intelligence
-python -m uvicorn api.main:app --reload
 ```
 
-The API will be available at `http://localhost:8000`
+### 2. Setup Environment
 
-### API Endpoints
-
-#### 1. Run Workflow
 ```bash
-POST /run
-{
-  "transcript": "Meeting transcript text..."
-}
+python -m venv venv
+venv\Scripts\activate
+pip install -r requirements.txt
 ```
 
-Returns:
+### 3. Configure Environment Variables
+
+Create a `.env` file:
+
+```env
+# Google Gemini API Configuration (FREE!)
+# Get your key at: https://aistudio.google.com/app/apikey
+GOOGLE_API_KEY=your_API_key
+
+# Jira Configuration (optional)
+JIRA_BASE_URL=https://your-domain.atlassian.net
+JIRA_EMAIL=your-email@example.com
+JIRA_API_TOKEN=your-jira-token-here
+JIRA_PROJECT_KEY=MI
+
+# Slack Configuration (optional)
+SLACK_WEBHOOK_URL=your_webhook_url
+
+# Workflow Configuration
+MAX_RETRIES=3
+STALE_AFTER_HOURS=48
+CHECK_INTERVAL_MINS=30
+
+# Database
+DATABASE_PATH=tasks.db
+WORKFLOWS_DB_PATH=workflows.db
+
+```
+
+### 4. Initialize Database
+
+```bash
+python -c "from api.db import init_db; init_db()"
+```
+
+### 5. Run Backend Server
+
+```bash
+uvicorn api.main:app --reload
+```
+
+### 6. Run Dashboard
+
+```bash
+python -m http.server 5500
+```
+
+### 🌐 Open in Browser
+
+```
+http://localhost:5500/dashboard/index.html
+```
+
+---
+---
+
+## ⚙️ Core Components  
+
+### 🧠 Extraction Agent  
+- Converts raw transcript → structured tasks  
+- Outputs JSON with tasks + decisions  
+
+### ✅ Verification Agent  
+Detects:  
+- Missing owner  
+- Missing deadlines  
+- Low confidence tasks  
+
+### 🧍 Human Review  
+- Workflow pauses using LangGraph interrupt  
+- Requires manual approval before proceeding  
+
+### ⚡ Action Agent  
+- Creates Jira tickets (simulated)  
+- Sends Slack notifications  
+
+### 🔁 Retry Logic  
+- Handles failures with exponential backoff  
+
+### ⏱️ Staleness Monitor  
+- Runs in background  
+- Detects tasks inactive for 48 hours  
+- Triggers escalation:  
+  - Owner → Manager → Ops  
+
+---
+
+## 📡 API Endpoints  
+
+| Method | Endpoint | Description |
+|--------|--------|------------|
+| POST | `/run` | Start workflow |
+| POST | `/approve/{thread_id}` | Resume after human input |
+| GET | `/audit/{thread_id}` | Get audit trail |
+| GET | `/stream/{thread_id}` | Live updates (SSE) |
+
+---
+
+## 🗄️ Data Models  
+
+### Task  
+- description  
+- owner  
+- deadline  
+- priority  
+- jira_url  
+- status  
+- escalation_level  
+
+### Audit Log  
+- stage  
+- event  
+- reasoning  
+- timestamp  
+
+---
+
+## 🔄 Escalation Logic  
+
+| Level | Action |
+|------|--------|
+| 0 | Notify Owner |
+| 1 | Notify Manager |
+| 2+ | Notify Ops |
+
+📌 Triggered when task is stale for **48+ hours**
+
+---
+
+## 📊 Audit Trail Example  
+
 ```json
 {
-  "thread_id": "uuid",
-  "stage": "extracted",
-  "tasks": [...],
-  "decisions": [...],
-  "gaps": [...]
+  "stage": "verification",
+  "event": "GAPS_FOUND",
+  "reasoning": "Task missing owner",
+  "ts": "2026-03-26T10:00:04"
 }
 ```
 
-#### 2. Approve and Continue
-```bash
-POST /approve/{thread_id}
-{
-  "approver": "John Doe",
-  "fixed_tasks": [...],
-  "notes": "Optional notes"
-}
-```
+---
 
-#### 3. Get Audit Trail
-```bash
-GET /audit/{thread_id}
-```
+## 🏆 Key Features  
 
-#### 4. Complete a Task
-```bash
-POST /tasks/{task_id}/complete
-```
+- Multi-agent AI workflow  
+- Human-in-the-loop validation  
+- Real-time audit tracking  
+- Persistent checkpoints (resume after crash)  
+- Automated escalation system  
+- Live dashboard monitoring  
 
-#### 5. Stream Audit Trail (Server-Sent Events)
-```bash
-GET /stream/{thread_id}
-```
+---
 
-#### 6. Health Check
-```bash
-GET /health
-```
+## 🚢 Deployment  
 
-## 📊 Workflow Stages
+### Backend  
+- Deploy on **Render / Railway**  
 
-1. **Extraction**: Claude extracts tasks, decisions, and ambiguities from transcript
-2. **Verification**: Validates that tasks have owners, deadlines (if high priority), and clear descriptions
-3. **Human Review** (if gaps found): Waits for human approval and fixes
-4. **Action**: Creates Jira tickets and sends Slack notifications
-5. **Completion**: Tasks tracked in database with escalation monitoring
+### Frontend  
+- Static hosting (**Vercel / Netlify**)  
 
-## 🔄 Retry Logic
+### Database  
+- SQLite (can upgrade to Postgres)  
 
-- **Max Retries**: 3 (configurable via `MAX_RETRIES`)
-- **Backoff Strategy**: Exponential backoff (2^attempt seconds, capped at 8 seconds)
-- **Validation**: Automatic JSON parsing with multiple fallback strategies
+---
 
-## 📈 Task Monitoring
+## ✅ Testing Checklist  
 
-- **Stale Detection**: Tasks not updated for 48 hours (configurable)
-- **Escalation Levels**: 0 (owner) → 1 (manager) → 2 (ops-team)
-- **Check Interval**: Every 30 minutes (configurable)
-- **Notifications**: Slack messages sent at each escalation level
+- [ ] Transcript → task extraction  
+- [ ] Gap detection (missing owner/deadline)  
+- [ ] Human approval flow  
+- [ ] Task execution  
+- [ ] Slack notifications  
+- [ ] Escalation after 48h  
+- [ ] Dashboard updates  
+- [ ] Audit trail correctness  
 
-## 🗄️ Database Schema
+---
 
-### `tasks` table
-- `id`: Task UUID
-- `thread_id`: Associated workflow thread
-- `description`: Task description
-- `owner`: Assigned person
-- `deadline`: Due date
-- `priority`: high|medium|low
-- `status`: open|done
-- `escalation_level`: 0-3
-- `jira_url`: Link to Jira ticket
-- `last_updated_at`: Timestamp
+## 🔮 Future Improvements  
 
-### `audit_log` table
-- `id`: Entry UUID
-- `thread_id`: Associated workflow thread
-- `stage`: extraction|verification|human|action|monitor|retry
-- `event`: STARTED|EXTRACTED|VERIFIED|etc.
-- `reasoning`: Human-readable explanation
-- `ts`: Timestamp (ISO 8601)
+- Real Jira API integration  
+- Role-based approvals  
+- Cloud deployment  
+- Analytics dashboard  
+- Multi-user support  
 
-## 🧪 Testing
+---
 
-```bash
-cd meeting-intelligence
-python -m pytest tests/
-```
+## 👩‍💻 Author  
 
-## 📝 Project Structure
+**Anushka Patel**  
+Economics Times GenAI Hackathon 2026  
 
-```
-meeting-intelligence/
-├── agents/
-│   ├── graph.py          # LangGraph workflow definition
-│   ├── nodes.py          # Extraction, verification, action nodes
-│   ├── state.py          # Workflow state TypedDict
-│   ├── prompts.py        # Claude system prompts
-│   ├── parser.py         # JSON parsing utilities
-│   └── __init__.py
-├── api/
-│   ├── main.py           # FastAPI application
-│   ├── db.py             # Database operations
-│   ├── monitor.py        # Stale task monitoring
-│   └── __init__.py
-├── tools/
-│   ├── jira.py           # Jira integration
-│   ├── slack.py          # Slack integration
-│   └── __init__.py
-├── tests/
-│   └── test_agents.py
-├── requirements.txt
-└── .env.example
-```
-
-## 🔐 Security Notes
-
-- Never commit `.env` files with real credentials
-- Use environment variables or secret management systems in production
-- Validate all inputs before passing to Claude
-- Implement rate limiting for API endpoints
-- Use HTTPS in production
-
-## 🤝 Contributing
-
-1. Create a feature branch
-2. Make your changes
-3. Add tests for new functionality
-4. Run pytest to verify
-5. Submit a pull request
-
-## 📄 License
-
-MIT
+---
