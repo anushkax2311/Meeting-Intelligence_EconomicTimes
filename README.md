@@ -9,7 +9,7 @@ A production-ready AI system that transforms meeting transcripts into structured
 | Layer | Technology |
 |-------|-----------|
 | AI Workflow | LangGraph |
-| LLM | Claude (Anthropic) |
+| LLM | Google Gemini |
 | Backend | FastAPI |
 | Database | SQLite |
 | Real-time | Server-Sent Events (SSE) |
