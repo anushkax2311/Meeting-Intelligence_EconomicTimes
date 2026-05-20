@@ -3,7 +3,7 @@ import re
 
 
 def safe_parse(text: str) -> dict:
-    """Parse Claude's response to JSON. Handles all real-world edge cases."""
+    """Parse Gemini's response to JSON. Handles all real-world edge cases."""
     text = text.strip()
 
     # 1. Direct parse — happy path (~95% of calls)
