@@ -20,7 +20,7 @@ def safe_parse(text: str) -> dict:
     except json.JSONDecodeError:
         pass
 
-    # 3. Extract first {...} block (Claude added preamble prose)
+    # 3. Extract first {...} block (gemini added preamble prose)
     match = re.search(r'\{[\s\S]*\}', text)
     if match:
         try:
