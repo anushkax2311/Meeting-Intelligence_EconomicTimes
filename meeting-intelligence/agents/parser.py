@@ -30,7 +30,7 @@ def safe_parse(text: str) -> dict:
 
     # 4. Raise with context so retry node can report it clearly
     preview = text[:200].replace('\n', ' ')
-    raise ValueError(f"Could not parse JSON from Claude output: {preview}")
+    raise ValueError(f"Could not parse JSON from Gemini output: {preview}")
 
 
 def validate_extraction(data: dict):
